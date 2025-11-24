@@ -27,7 +27,7 @@
         
         /* --- FullCalendar Customization --- */
         
-        /* Style ของปฏิทินทั่วไป (Grid View) -> ให้เล็ก Compact */
+        /* Grid Event (Compact) */
         .fc-daygrid-event { 
             padding: 1px 3px !important; 
             border-radius: 3px; 
@@ -35,32 +35,33 @@
             border: none;
             font-size: 0.75rem;
             line-height: 1.2;
-            cursor: pointer;
+            cursor: pointer; /* เป็นรูปนิ้วมือ */
         }
         
-        /* Style ของ Popover (กล่อง More) -> ให้ใหญ่และชัดเจนเหมือนเดิม */
+        /* Popover Container */
         .fc-popover { 
             z-index: 50 !important; 
             border-radius: 0.5rem !important; 
             box-shadow: 0 10px 25px -5px rgba(0,0,0,0.2) !important; 
-            min-width: 250px; /* ขยายความกว้าง */
+            min-width: 260px; /* กว้างขึ้นเพื่อให้ข้อมูลไม่เบียด */
         }
         
-        /* ขยายรายการข้างใน Popover ให้เต็ม ไม่ย่อ */
+        /* Events inside Popover (Full View) */
         .fc-popover .fc-daygrid-event {
-            padding: 6px 8px !important;
+            padding: 8px 10px !important; /* เพิ่มพื้นที่กด */
             margin-bottom: 4px !important;
             font-size: 0.85rem !important; /* ตัวหนังสือใหญ่ขึ้น */
-            white-space: normal !important; /* ให้ตัดบรรทัดได้ */
+            white-space: normal !important; 
             display: block !important;
+            border-radius: 6px !important;
         }
-        /* ซ่อน Element ย่อ แล้วแสดง Element เต็มใน Popover */
+        
+        /* Control visibility */
         .fc-popover .compact-view { display: none !important; }
         .fc-popover .full-view { display: block !important; }
-        
-        /* ซ่อน Element เต็มใน Grid ปกติ */
         .fc-daygrid-day-events .full-view { display: none !important; }
         
+        /* Dark Mode Support */
         .dark .fc-popover { background-color: #1f2937 !important; border-color: #4b5563 !important; }
         .dark .fc-popover-header { background-color: #374151 !important; color: #f9fafb !important; }
         .dark .fc-popover-body { color: #e5e7eb !important; }
@@ -80,7 +81,7 @@
             </form>
             <div id="loginError" class="mt-4 p-3 bg-red-100 text-red-700 rounded-xl hidden"></div>
         </div>
-        <p class="text-center text-xs text-gray-400 mt-4">Version 13.1 (Smart Popover)</p>
+        <p class="text-center text-xs text-gray-400 mt-4">Version 13.2 (Final Actions)</p>
     </div>
 
     <div id="mainApp" class="hidden" x-data="{ navOpen: false }">
@@ -368,10 +369,8 @@ function initCalendarPage(){
                 return { html: `<div class="flex items-center gap-3 w-full"><div class="fc-list-event-dot" style="border-color: ${userColor}"></div><div class="fc-event-time">${arg.timeText}</div><div class="fc-event-title"><span class="font-semibold">${props.nickname}</span> <span class="text-gray-500">(${props.branch})</span></div></div>` }; 
             } 
             
-            // เวลาและชื่อสำหรับการแสดงผล
             let timeHtml = props.startTime ? `<span class="font-bold mr-1">${props.startTime}</span>` : '';
             let branchDisplay = props.branch;
-            // Compact View (Grid) - ตัดคำสาขา
             if (branchDisplay.length > 12) branchDisplay = branchDisplay.substring(0, 12) + '..'; 
 
             return { 
