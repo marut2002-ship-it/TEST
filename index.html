@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Employee Work Tracker</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
+  <!-- FullCalendar -->
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+  <!-- SweetAlert2 -->
+  <script src="//cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <!-- Alpine.js -->
+  <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.2/dist/cdn.min.js" defer></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            primary: '#3B82F6',
+            secondary: '#10B981',
+            accent: '#F3F4F6'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .fade-in { animation: fadeIn .3s ease-in; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(10px);} to {opacity:1; transform:translateY(0);} }
+    .skeleton { background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: loading 1.5s infinite; }
+    @keyframes loading { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+    .dark .skeleton { background: linear-gradient(90deg, #374151 25%, #4b5563 50%, #374151 75%); background-size: 200% 100%; }
+    /* Add more custom styles here if needed */
+  </style>
+</head>
+<body x-data="{ page: 'login', dark: false }" :class="{ 'dark': dark }" class="bg-gray-100 dark:bg-gray-800 min-h-screen">
+
+<!-- Loading Spinner -->
+<div id="globalLoading" class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 hidden">
+  <div class="border-4 border-blue-500 border-t-transparent rounded-full w-16 h-16 animate-spin"></div>
+</div>
+
+<!-- Login Form -->
+<div x-show="page === 'login'" class="flex flex-col items-center justify-center min-h-screen fade-in">
+  <div class="bg-white dark:bg-gray-900 rounded-lg shadow-lg p-8 w-full max-w-sm">
+    <h2 class="text-2xl font-bold text-primary mb-4">เข้าสู่ระบบ</h2>
+    <form @submit.prevent="handleLogin">
+      <div class="mb-2">
+        <label for="username" class="block font-semibold mb-1">ชื่อผู้ใช้</label>
+        <input type="text" id="username" class="w-full p-2 border rounded dark:bg-gray-700 dark:text-white" required>
+      </div>
+      <div class="mb-2">
+        <label for="password" class="block font-semibold mb-1">รหัสผ่าน</label>
+        <input type="password" id="password" class="w-full p-2 border rounded dark:bg-gray-700 dark:text-white" required>
+      </div>
+      <button id="loginBtn" type="submit" class="mt-4 w-full py-2 px-4 bg-primary text-white rounded-lg font-bold flex items-center justify-center">
+        <span id="loginText">เข้าสู่ระบบ</span>
+        <span id="loginSpinner" class="ml-2 hidden"><i class="fas fa-spinner fa-spin"></i></span>
+      </button>
+      <div id="loginError" class="text-red-500 text-sm mt-2 hidden"></div>
+    </form>
+    <!-- Dark mode toggle -->
+    <button @click="dark = !dark" class="mt-4 w-full py-2 bg-secondary text-white rounded flex items-center justify-center">
+      <span>สลับโหมดกลางคืน</span>
+      <i :class="dark ? 'fas fa-moon ml-2' : 'fas fa-sun ml-2'"></i>
+    </button>
+  </div>
+</div>
+
+<!-- Dashboard Page -->
+<div x-show="page === 'dashboard'" class="container mx-auto px-2 pt-10 fade-in">
+  <!-- Header & Export Button -->
+  <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+    <h1 class="text-3xl font-bold text-gray-800 dark:text-white">Dashboard</h1>
+    <button onclick="exportToCSV()" class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 flex items-center gap-2">
+      <i class="fas fa-file-export"></i>
+      <span>ส่งออก CSV</span>
+    </button>
+  </div>
+  <!-- Filters Section -->
+  <div class="flex flex-wrap gap-4 mb-4">
+    <input type="month" id="filter-month" class="p-2 border rounded text-sm dark:bg-gray-700 dark:text-white">
+    <input type="date" id="filter-date" class="p-2 border rounded text-sm dark:bg-gray-700 dark:text-white">
+    <select id="filter-employee" class="p-2 border rounded text-sm dark:bg-gray-700 dark:text-white"></select>
+    <select id="filter-branch" class="p-2 border rounded text-sm dark:bg-gray-700 dark:text-white"></select>
+    <select id="filter-area" class="p-2 border rounded text-sm dark:bg-gray-700 dark:text-white"></select>
+    <select id="filter-region" class="p-2 border rounded text-sm dark:bg-gray-700 dark:text-white"></select>
+    <input type="text" id="filter-search" placeholder="ค้นหา..." class="p-2 border rounded text-sm dark:bg-gray-700 dark:text-white">
+  </div>
+  <!-- Calendar & Table -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div id="calendar"></div>
+    <div>
+      <table id="dashboardTable" class="min-w-full bg-white dark:bg-gray-900 rounded-lg overflow-hidden">
+        <thead>
+          <tr>
+            <th class="py-2 px-2 font-semibold">วันที่</th>
+            <th class="py-2 px-2 font-semibold">พนักงาน</th>
+            <th class="py-2 px-2 font-semibold">เริ่ม</th>
+            <th class="py-2 px-2 font-semibold">เลิก</th>
+            <th class="py-2 px-2 font-semibold">สาขา</th>
+            <th class="py-2 px-2 font-semibold">รายละเอียด</th>
+          </tr>
+        </thead>
+        <tbody id="dashboardTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+  <!-- Logout Button -->
+  <div class="mt-8 flex justify-end">
+    <button @click="handleLogout" class="px-4 py-2 bg-primary rounded text-white font-bold flex items-center gap-2">
+      <i class="fas fa-sign-out-alt"></i>
+      <span>ออกจากระบบ</span>
+    </button>
+  </div>
+</div>
+
+<!-- Add more page sections, modals, etc. -->
+
+<script>
+/* --------------------------- Global Variables --------------------------- */
+let masterData = { schedules: [], branches: [], users: [] };
+let currentUser = null;
+let calendar = null;
+
+/* -------------------------- Utility Functions --------------------------- */
+function showGlobalLoading(show) {
+  document.getElementById("globalLoading").style.display = show ? 'flex' : 'none';
+}
+function showLoadingSkeleton() {
+  return `
+    <div class="space-y-4">
+      <div class="skeleton h-8 rounded-md"></div>
+      <div class="skeleton h-8 rounded-md"></div>
+      <div class="skeleton h-8 rounded-md"></div>
+    </div>
+  `;
+}
+function formatDateForDisplay(d) {
+  if (!d) return '';
+  if (typeof d === 'object' && d.toISOString) d = d.toISOString().slice(0, 10);
+  if (typeof d === 'string' && d.match(/^\d{4}-\d{2}-\d{2}/)) {
+    const [y,m,dd] = d.split('-');
+    return `${dd}/${m}/${y}`;
+  }
+  return d;
+}
+function debounce(func, wait) {
+  let timeout;
+  return function(...args) {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func.apply(this, args), wait);
+  };
+}
+async function hashPassword(password) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password);
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hash))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+/* --------------------------- Backend API Call --------------------------- */
+async function apiCall(obj) {
+  showGlobalLoading(true);
+  try {
+    const res = await fetch(
+      `${window.location.href.replace(/\?.*$/, '')}`,
+      {
+        method: 'POST',
+        body: JSON.stringify(obj),
+        headers: { 'Content-Type': 'application/json' }
+      }
+    );
+    showGlobalLoading(false);
+    if (!res.ok) throw new Error("API Error " + res.status);
+    return await res.json();
+  } catch (err) {
+    showGlobalLoading(false);
+    throw err;
+  }
+}
+
+/* ----------------------------- Login Logic ----------------------------- */
+async function handleLogin() {
+  document.getElementById('loginText').classList.add('hidden');
+  document.getElementById('loginSpinner').classList.remove('hidden');
+  document.getElementById('loginBtn').disabled = true;
+  document.getElementById('loginError').classList.add('hidden');
+
+  try {
+    const username = document.getElementById('username').value;
+    const password = document.getElementById('password').value;
+    const hashedPassword = await hashPassword(password);
+
+    const response = await apiCall({ action: 'login', username: username, password: hashedPassword });
+    if (response.status === 'success') {
+      currentUser = response.user;
+      sessionStorage.setItem('currentUser', JSON.stringify(currentUser));
+      pageSwitch('dashboard');
+      await initializeApp();
+    } else {
+      throw new Error(response.message || 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
+    }
+  } catch (error) {
+    document.getElementById('loginError').textContent = error.message;
+    document.getElementById('loginError').classList.remove('hidden');
+  } finally {
+    document.getElementById('loginText').classList.remove('hidden');
+    document.getElementById('loginSpinner').classList.add('hidden');
+    document.getElementById('loginBtn').disabled = false;
+  }
+}
+window.handleLogin = handleLogin;
+
+function handleLogout() {
+  currentUser = null;
+  sessionStorage.removeItem('currentUser');
+  pageSwitch('login');
+}
+window.handleLogout = handleLogout;
+
+function pageSwitch(targetPage) {
+  document.querySelector('body').__x.$data.page = targetPage;
+}
+
+/* -------------------------- App Initialization ------------------------- */
+async function initializeApp() {
+  try {
+    showGlobalLoading(true);
+    // Get data
+    const response = await apiCall({ action: 'getInitialData', username: currentUser.username, role: currentUser.role });
+    if (response.status !== 'success') throw new Error('โหลดข้อมูลไม่สำเร็จ');
+    masterData = response.data;
+
+    // Render filter options
+    renderFilters();
+
+    // Render table & calendar
+    renderDashboardTable();
+    renderCalendar();
+
+    // Check notifications
+    checkUpcomingSchedules();
+  } catch (err) {
+    Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
+  } finally {
+    showGlobalLoading(false);
+  }
+}
+
+function renderFilters() {
+  // Employee/Nickname filter
+  let empSelect = document.getElementById('filter-employee');
+  empSelect.innerHTML = '<option value="">ทุกคน</option>' + masterData.users.map(u =>
+    `<option value="${u.nickname}">${u.nickname}</option>`).join('');
+  // Branch filter
+  let branchSelect = document.getElementById('filter-branch');
+  branchSelect.innerHTML = '<option value="">ทุกสาขา</option>' + masterData.branches.map(b =>
+    `<option value="${b[0]}">${b[0]}</option>`).join('');
+  // Area filter
+  let areaSelect = document.getElementById('filter-area');
+  areaSelect.innerHTML = '<option value="">ทุกเขต</option>' + masterData.branches.map(b =>
+    `<option value="${b[1]}">${b[1]}</option>`).join('');
+  // Region filter
+  let regionSelect = document.getElementById('filter-region');
+  regionSelect.innerHTML = '<option value="">ทุกภาค</option>' + masterData.branches.map(b =>
+    `<option value="${b[2]}">${b[2]}</option>`).join('');
+}
+
+// Table
+function renderDashboardTable() {
+  let filtered = [...masterData.schedules];
+  // Month
+  let month = document.getElementById('filter-month').value;
+  if (month) filtered = filtered.filter(r => r[3] && r[3].startsWith(month));
+  // Date
+  let date = document.getElementById('filter-date').value;
+  if (date) filtered = filtered.filter(r => r[3] === date);
+  // Region
+  let region = document.getElementById('filter-region').value;
+  if (region) filtered = filtered.filter(r => r[10] === region);
+  // Area
+  let area = document.getElementById('filter-area').value;
+  if (area) filtered = filtered.filter(r => r[9] === area);
+  // Branch
+  let branch = document.getElementById('filter-branch').value;
+  if (branch) filtered = filtered.filter(r => r[6] === branch);
+  // Employee
+  let emp = document.getElementById('filter-employee').value;
+  if (emp) filtered = filtered.filter(r => r[11] === emp);
+
+  // Real-time search filter
+  let searchTerm = document.getElementById('filter-search').value.toLowerCase();
+  if (searchTerm) {
+    filtered = filtered.filter(row =>
+      row[11].toLowerCase().includes(searchTerm) ||
+      row[6].toLowerCase().includes(searchTerm) ||
+      (row[7] || '').toLowerCase().includes(searchTerm)
+    );
+  }
+  // Table body render
+  let tbBody = document.getElementById('dashboardTableBody');
+  tbBody.innerHTML = filtered.length === 0 
+    ? `<tr><td colspan="6" class="text-center p-4 text-gray-500">ไม่พบข้อมูล</td></tr>`
+    : filtered.map(row => 
+        `<tr>
+          <td class="px-2 py-1">${formatDateForDisplay(row[3])}</td>
+          <td class="px-2 py-1">${row[11]}</td>
+          <td class="px-2 py-1">${row[4]}</td>
+          <td class="px-2 py-1">${row[5]}</td>
+          <td class="px-2 py-1">${row[6]}</td>
+          <td class="px-2 py-1">${row[7]}</td>
+        </tr>`
+      ).join('');
+}
+
+// Calendar
+function renderCalendar() {
+  if (calendar) calendar.destroy();
+  calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
+    initialView: 'dayGridMonth',
+    locale: 'th',
+    events: masterData.schedules.map(row => ({
+      title: row[11] + ': ' + row[6],
+      start: row[3],
+      end: row[3],
+      description: row[7]
+    })),
+    eventClick: function(info) {
+      Swal.fire({
+        title: 'รายละเอียดตารางงาน',
+        html: `<strong>${info.event.title}</strong><br>${info.event.start ? formatDateForDisplay(info.event.start.toISOString().slice(0,10)) : ''}<br><i>${info.event.extendedProps.description}</i>`,
+      });
+    }
+  });
+  calendar.render();
+}
+
+// Check for upcoming schedules
+function checkUpcomingSchedules() {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowStr = tomorrow.toISOString().slice(0, 10);
+  const upcoming = masterData.schedules.filter(r => r[3] === tomorrowStr && r[2] === currentUser.username);
+  if (upcoming.length > 0) {
+    Swal.fire({
+      title: 'แจ้งเตือน!',
+      html: `คุณมีตารางงานพรุ่งนี้<br>
+        <strong>${upcoming[0][6]}</strong><br>
+        เวลา: ${upcoming[0][4]} - ${upcoming[0][5]}`,
+      icon: 'info'
+    });
+  }
+}
+
+// Export to CSV
+function exportToCSV() {
+  // Filters (same as table)
+  let filtered = [...masterData.schedules];
+  let month = document.getElementById('filter-month').value;
+  if (month) filtered = filtered.filter(r => r[3] && r[3].startsWith(month));
+  let date = document.getElementById('filter-date').value;
+  if (date) filtered = filtered.filter(r => r[3] === date);
+  let region = document.getElementById('filter-region').value;
+  if (region) filtered = filtered.filter(r => r[10] === region);
+  let area = document.getElementById('filter-area').value;
+  if (area) filtered = filtered.filter(r => r[9] === area);
+  let branch = document.getElementById('filter-branch').value;
+  if (branch) filtered = filtered.filter(r => r[6] === branch);
+  let emp = document.getElementById('filter-employee').value;
+  if (emp) filtered = filtered.filter(r => r[11] === emp);
+  // Search
+  let searchTerm = document.getElementById('filter-search').value.toLowerCase();
+  if (searchTerm) {
+    filtered = filtered.filter(row =>
+      row[11].toLowerCase().includes(searchTerm) ||
+      row[6].toLowerCase().includes(searchTerm) ||
+      (row[7] || '').toLowerCase().includes(searchTerm)
+    );
+  }
+  // CSV conversion
+  const headers = ['วันที่','พนักงาน','เวลาเริ่ม','เวลาเลิก','สาขา','เขต','ภาค','รายละเอียด'];
+  const csvContent = [
+    headers.join(','),
+    ...filtered.map(row => [
+      formatDateForDisplay(row[3]), row[11], row[4], row[5], `"${row[6]}"`, row[9], row[10], `"${(row[7]||'').replace(/"/g,'""')}"`
+    ].join(','))
+  ].join('\n');
+  // BOM for Thai
+  const BOM = '\uFEFF';
+  const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `work-schedule-${new Date().toISOString().slice(0,10)}.csv`;
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  Swal.fire('ส่งออกสำเร็จ!', 'ไฟล์ CSV พร้อมดาวน์โหลด', 'success');
+}
+
+// Filters event listeners
+['filter-month','filter-date','filter-employee','filter-branch','filter-area','filter-region','filter-search']
+  .forEach(id => {
+    let ele = document.getElementById(id);
+    if (ele) {
+      ele.addEventListener('input', debounce(renderDashboardTable, 300));
+    }
+  });
+
+window.onload = function() {
+  // ถ้า login แล้ว ดึง user จาก sessionStorage
+  try {
+    let user = sessionStorage.getItem('currentUser');
+    if (user) {
+      currentUser = JSON.parse(user);
+      pageSwitch('dashboard');
+      initializeApp();
+    }
+  } catch(e){}
+};
+</script>
+</body>
+</html>
